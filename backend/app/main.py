@@ -5,6 +5,7 @@ TestAI - 智能测试平台后端主入口
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import test_cases
+from app.api import test_case_db
 
 # 创建 FastAPI 应用实例
 app = FastAPI(
@@ -51,6 +52,14 @@ app.include_router(
         422: {"description": "请求参数验证失败"},
     },
 )
+
+# 数据库相关的测试用例管理
+app.include_router(
+    test_case_db.router,
+    prefix="/api/v1/test-cases/db",
+    tags=["测试用例数据库管理"]
+)
+
 
 # 根路径端点（服务状态检查）
 @app.get(
