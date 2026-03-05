@@ -1,124 +1,153 @@
 # TestAI - 智能测试平台 Agent 配置
 
-## 项目概述
+> 本文件是 AI Agent 的行为约束，不是项目 README。
+> Agent 读取本文件后应知道：能做什么、不能做什么、怎么验证。
 
-**TestAI** 是一个基于大语言模型的智能测试用例生成平台，采用前后端分离架构。
-
-- **核心功能**：输入自然语言需求，AI 自动生成结构化测试用例
-- **AI 引擎**：Kimi (Moonshot) 大语言模型
-- **目标用户**：软件测试工程师、开发团队
+**技术栈**: FastAPI 3.11 + React 18 + Vite + Ant Design 5.x + SQLAlchemy 2.0 + Kimi (Moonshot) API
 
 ---
 
-## 技术栈
+## 项目地图
 
-### 后端
-- **框架**：FastAPI (Python 3.11)
-- **数据库**：SQLite (开发) / PostgreSQL (生产)
-- **ORM**：SQLAlchemy 2.0
-- **AI 调用**：HTTP Requests (同步)
-- **API 文档**：Swagger/OpenAPI (自动生成)
+testai-platform/ # 项目根目录 ├── backend/ # 后端代码（Python） │ ├── app/ │ │ ├── api/ # API 路由（FastAPI endpoints） │ │ │ ├── test_cases.py # AI 生成接口（原有） │ │ │ └── test_case_db.py # 数据库管理接口（新增） │ │ ├── crud/ # 数据库 CRUD 操作（SQLAlchemy） │ │ │ └── test_case.py │ │ ├── models/ # 数据模型定义 │ │ │ └── database.py # SQLAlchemy 模型（TestCase 表定义） │ │ ├── services/ # 业务逻辑 │ │ │ └── ai_service.py # Kimi AI 调用封装 │ │ └── main.py # FastAPI 入口、CORS、生命周期、路由注册 │ ├── requirements.txt # Python 依赖（FastAPI、SQLAlchemy等） │ ├── .env # ⚠️ 环境变量（API Key等，不提交Git） │ └── testai.db # ⚠️ SQLite 数据库文件（自动生成，不提交Git） ├── frontend/ # 前端代码（React） │ ├── src/ │ │ ├── App.jsx # 主页面（测试用例生成UI） │ │ └── main.jsx # React入口 │ └── package.json # Node依赖 ├── .gitignore # Git忽略配置（已排除.env和*.db） ├── README.md # 项目说明文档（给用户看的） └── agent.md # 本文件（给AI看的开发规范）
 
-### 前端
-- **框架**：React 18
-- **构建工具**：Vite
-- **UI 组件库**：Ant Design 5.x
-- **HTTP 客户端**：Axios
-- **样式**：CSS-in-JS (内联样式)
 
-### 开发工具
-- **版本控制**：Git
-- **包管理**：pip (Python) / npm (Node.js)
-- **虚拟环境**：venv
+> 本地图是语义摘要，非完整文件列表。新增模块时更新此处。
 
 ---
 
-## 项目结构
+## 核心规则
 
-testai-platform/ ├── backend/ # 后端代码 │ ├── app/ │ │ ├── api/ # API 路由 │ │ │ ├── test_cases.py # AI 生成接口 │ │ │ └── test_case_db.py # 数据库管理接口 │ │ ├── crud/ # 数据库 CRUD 操作 │ │ │ └── test_case.py │ │ ├── models/ # 数据模型 │ │ │ └── database.py # SQLAlchemy 模型 │ │ ├── services/ # 业务逻辑 │ │ │ └── ai_service.py # Kimi AI 调用 │ │ └── main.py # FastAPI 入口 │ ├── requirements.txt # Python 依赖 │ └── .env # 环境变量 (不提交到 Git) ├── frontend/ # 前端代码 │ ├── src/ │ │ ├── App.jsx # 主页面 │ │ └── main.jsx # 入口 │ ├── package.json # Node 依赖 │ └── ... ├── testai.db # SQLite 数据库文件 (自动生成) └── README.md # 项目说明
+### 1. 前后端同步
 
+前后端是一个整体。以下变更必须双向检查：
+
+| 后端变更 | 必须检查前端 |
+|----------|-------------|
+| API 路由路径/参数变更 | Axios 调用点是否同步更新 |
+| 响应结构变更（字段增删改） | 前端解析和渲染是否适配 |
+| 新增 API 端点 | 前端是否有对应调用入口 |
+
+**违反此规则 = 制造 bug。没有例外。**
+
+### 2. 先理解再动手
+
+每次修改前问三个问题：
+1. **这是真实需求还是我的猜测？** — 不确定就问用户
+2. **有更简单的方案吗？** — 永远先写最简实现
+3. **会破坏现有功能吗？** — 改 API 前检查所有调用方
+
+### 3. 范围约束
+
+遇到当前任务范围外的问题（环境配置、第三方服务异常、架构重构），**立即停止并询问用户**。不要擅自添加 workaround 或超出范围的代码。
 
 ---
 
-## 开发规范
+## 禁止行为
 
-### Python (后端)
+| 编号 | 禁止 | 原因 |
+|------|------|------|
+| F-01 | **硬编码 API Key 或密钥到源码** | 安全风险，密钥只能通过 `.env` 引入 |
+| F-02 | **在 commit message / 日志中泄露敏感信息** | 版本历史永久保留 |
+| F-03 | **不看错误信息就猜测修复** | 浪费时间，引入新 bug |
+| F-04 | **失败后不分析原因直接重跑** | 重跑不是调试 |
+| F-05 | **修改 API 接口不检查前端调用方** | 制造运行时错误 |
+| F-06 | **绕过 ORM 直接拼 SQL 字符串** | SQL 注入风险 |
+| F-07 | **`git add .` 提交所有文件** ⚠️ **特别注意** | **`.env`、数据库文件、虚拟环境目录必须排除** |
+| F-08 | **修改数据库模型不说明迁移方式** | 数据丢失风险 |
 
-1. **导入顺序**：
-   - 标准库 (os, sys, datetime)
-   - 第三方库 (fastapi, sqlalchemy)
-   - 本地模块 (from app.models...)
+**特别强调 F-07：**
+- ✅ `.env` 已在 `.gitignore` 中，正常情况不会被提交
+- ✅ `*.db` 已在 `.gitignore` 中，正常情况不会被提交  
+- ⚠️ **但 `git add .` 是危险操作**，建议明确添加：`git add backend/app/api/test_case_db.py` 等具体文件
 
-2. **类型注解**：函数参数和返回值使用类型提示
-   ```python
-   def generate_test_case(self, requirement: str) -> dict:
-异步/同步：
-数据库操作用 SQLAlchemy ORM（同步）
-HTTP 调用用 requests（同步，简单稳定）
-API 路由可以用 async（FastAPI 支持）
-错误处理：使用 try-except 包裹可能出错的操作，返回友好的错误信息
-JavaScript/React (前端)
+---
+
+## 编码规范
+
+### Python（后端）
+
+```python
+# 导入顺序：标准库 → 第三方 → 本地（空行分隔）
+import os
+from datetime import datetime
+
+from fastapi import APIRouter, HTTPException
+from sqlalchemy.orm import Session
+
+from app.models.database import TestCase
+from app.services.ai_service import AIService
+所有函数必须有类型注解（参数 + 返回值）
+错误处理：API 层捕获异常并返回明确的 HTTP 状态码和错误描述，不要返回裸 500
+数据库操作：只通过 SQLAlchemy ORM，禁止原生 SQL 拼接
+环境变量：通过 os.getenv() 或 pydantic Settings 读取，不硬编码
+JavaScript/React（前端）
 组件命名：大驼峰 (PascalCase)，如 TestCaseGenerator
-变量命名：小驼峰 (camelCase)
+变量/函数命名：小驼峰 (camelCase)
 状态管理：使用 useState, useEffect
 异步处理：使用 async/await，配合 try-catch
+调试协议
+测试或功能出问题时，按以下顺序排查，不要跳步：
+
+1. 读错误信息  → 理解报错的具体位置和类型
+2. 检查 API    → 后端 /docs (Swagger) 中手动测试对应接口
+3. 检查前端    → 浏览器 DevTools Network 看请求/响应
+4. 检查数据    → 确认数据库中数据状态是否符合预期
+5. 定位修复    → 基于以上证据修改代码
+禁止：
+
+不看日志直接改代码（盲修）
+报错后不分析直接重启服务（盲跑）
+前端报错只看前端、后端报错只看后端（必须看完整链路）
+数据库变更规则
+SQLAlchemy 模型修改需要注意：
+
+新增字段：设置 default 或 nullable=True，避免已有数据报错
+删除/重命名字段：告知用户需要迁移或重建数据库，确认后再执行
+开发环境使用 SQLite（testai.db），该文件已在 .gitignore 中
+生产环境使用 PostgreSQL，模型变更需配合 Alembic migration
+任何可能导致数据丢失的操作，必须先询问用户。
+
+测试策略
+后端测试
+# 在 backend/ 目录下执行
+python -m pytest tests/ -v
+API 端点：使用 FastAPI TestClient 测试请求/响应
+业务逻辑：单元测试 services/ 中的函数，mock AI API 调用
+数据库操作：使用内存 SQLite 隔离测试数据
+前端测试
+组件渲染：确认核心交互流程可用
+API 集成：mock Axios 响应，验证组件状态更新
+必须测试的场景
+场景	验证内容
+AI 生成成功	返回结构化测试用例，前端正确渲染
+AI 生成失败（API 超时/额度不足）	后端返回明确错误码，前端展示友好提示
+空输入	前后端都有校验，不发送无效请求
+数据库 CRUD	创建/读取/更新/删除均正常
+安全清单
+ .env 在 .gitignore 中，不提交到版本控制
+ API Key 通过环境变量注入，代码中无硬编码
+ CORS 配置明确限定允许的 origin（生产环境不用 *）
+ 用户输入在后端有校验（长度、格式）
+ 数据库操作通过 ORM，不拼接 SQL
 常用命令
-启动开发环境
-后端：
-
-cd F:\testai-platform\backend
-venv\Scripts\Activate.ps1
-uvicorn app.main:app --reload --port 8000
-前端：
-
-cd F:\testai-platform\frontend
-npm run dev
-安装依赖
-后端：
-
+# === 后端 ===
+cd backend
+python -m venv venv && source venv/bin/activate  # Linux/Mac
+# venv\Scripts\Activate.ps1                      # Windows PowerShell
 pip install -r requirements.txt
-前端：
+uvicorn app.main:app --reload --port 8000
 
+# === 前端 ===
+cd frontend
 npm install
-Git 操作
-# 查看状态
-git status
+npm run dev
 
-# 添加文件
-git add .
-
-# 提交
-git commit -m "feat: 描述"
-
-# 推送
+# === Git（提交前检查） ===
+git status                    # 确认不包含 .env 和 *.db 文件
+git add <具体文件>            # 不要用 git add .
+git commit -m "type: 描述"    # type: feat/fix/refactor/docs/test
 git push
-环境变量 (.env 文件)
-在项目根目录 backend/.env：
-
-# Kimi (Moonshot) API Key
-# 从 https://platform.moonshot.cn/ 获取
-MOONSHOT_API_KEY=sk-xxxxxxxxxxxxxxxx
-
-# 数据库配置（可选，默认使用 SQLite）
-# DATABASE_URL=postgresql://user:password@localhost:5432/testai
-
-# 环境设置
-ENVIRONMENT=development
-DEBUG=true
-⚠️ 重要：.env 文件不要提交到 Git，已添加到 .gitignore
-
-调试技巧
-查看 API 文档：启动后端后访问 http://127.0.0.1:8000/docs
-检查数据库：使用 VS Code SQLite 插件查看 testai.db
-查看日志：后端控制台会输出请求和错误信息
-前端调试：浏览器 F12 打开开发者工具，查看 Console 和 Network
-常见问题
-Q: 前端无法连接到后端？ A: 检查后端是否运行在 http://127.0.0.1:8000，并检查 CORS 配置。
-
-Q: Kimi API 调用失败？ A: 检查 MOONSHOT_API_KEY 是否正确，账户是否有余额。
-
-Q: 数据库表没有创建？ A: 确保重启了后端服务，SQLAlchemy 会在启动时自动创建表。
-
 功能扩展建议
  用户认证系统（登录/注册）
  测试用例导出（PDF、Excel、Markdown）
