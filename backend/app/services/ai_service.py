@@ -2,6 +2,7 @@
 Kimi (Moonshot) AI 服务 - 同步版本（简单稳定）
 """
 import os
+import re
 from dotenv import load_dotenv
 import requests  # 使用同步的 requests，无需 C 编译
 
@@ -10,6 +11,7 @@ from app.models.database import SessionLocal, TestCase
 
 # 加载环境变量
 load_dotenv()
+
 
 class AIService:
     def __init__(self):
@@ -21,6 +23,59 @@ class AIService:
         self.base_url = "https://api.moonshot.cn/v1"
         # 使用的模型
         self.model = "moonshot-v1-8k"
+    
+    def extract_tags_from_content(self, content: str) -> tuple:
+        """
+        从生成的测试用例内容中提取标签和分类
+        返回: (tags, category, priority)
+        """
+        tags = []
+        category = "功能测试"
+        priority = "中"
+        
+        content_lower = content.lower()
+        
+        # 根据关键词推断分类
+        if any(kw in content_lower for kw in ['登录', '注册', '认证', 'auth', 'login']):
+            category = "认证测试"
+            tags.append('认证')
+        elif any(kw in content_lower for kw in ['api', '接口', 'http', '请求', '响应']):
+            category = "接口测试"
+            tags.append('API')
+        elif any(kw in content_lower for kw in ['ui', '界面', '页面', '按钮', '表单']):
+            category = "UI测试"
+            tags.append('UI')
+        elif any(kw in content_lower for kw in ['性能', '压力', '并发', '负载', 'performance']):
+            category = "性能测试"
+            tags.append('性能')
+        elif any(kw in content_lower for kw in ['安全', 'sql注入', 'xss', '越权', 'security']):
+            category = "安全测试"
+            tags.append('安全')
+        
+        # 根据关键词推断优先级
+        if any(kw in content_lower for kw in ['高优先级', '高', 'p0', 'p1', 'critical']):
+            priority = "高"
+        elif any(kw in content_lower for kw in ['低优先级', '低', 'p3', 'minor']):
+            priority = "低"
+        
+        # 从内容中提取更多标签
+        tag_keywords = {
+            '边界': '边界值',
+            '异常': '异常处理',
+            '正常': '正常流程',
+            '必填': '必填项',
+            '长度': '长度验证',
+            '格式': '格式验证'
+        }
+        
+        for keyword, tag in tag_keywords.items():
+            if keyword in content:
+                tags.append(tag)
+        
+        # 去重并限制标签数量
+        tags = list(dict.fromkeys(tags))[:5]  # 最多5个标签
+        
+        return ','.join(tags), category, priority
     
     def generate_test_case(self, requirement: str) -> dict:
         """
@@ -76,6 +131,9 @@ class AIService:
             
             content = result['choices'][0]['message']['content']
             
+            # 提取标签、分类和优先级
+            tags, category, priority = self.extract_tags_from_content(content)
+            
             # 生成成功，保存到数据库
             try:
                 # 提取标题（第一行或前50个字符）
@@ -88,7 +146,10 @@ class AIService:
                     title=title,
                     requirement=requirement,
                     content=content,
-                    ai_model=self.model
+                    ai_model=self.model,
+                    tags=tags,
+                    category=category,
+                    priority=priority
                 )
                 db.add(db_test_case)
                 db.commit()
@@ -101,7 +162,10 @@ class AIService:
                     "requirement": requirement,
                     "model": self.model,
                     "saved_to_db": True,
-                    "db_id": db_test_case.id
+                    "db_id": db_test_case.id,
+                    "tags": tags,
+                    "category": category,
+                    "priority": priority
                 }
                 
                 db.close()
@@ -116,7 +180,10 @@ class AIService:
                     "requirement": requirement,
                     "model": self.model,
                     "saved_to_db": False,
-                    "save_error": str(db_error)
+                    "save_error": str(db_error),
+                    "tags": tags,
+                    "category": category,
+                    "priority": priority
                 }
                     
         except Exception as e:
